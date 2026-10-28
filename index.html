@@ -194,7 +194,8 @@
     document.getElementById(kind + '-graph').innerHTML = graphSVG(st);
     document.getElementById(kind + '-ds').innerHTML = pqHTML(st.pq, kind);
     document.getElementById(kind + '-what').textContent = st.what;
-    document.getElementById(kind + '-why').textContent = ended ? '이미 탐색이 끝났다. 다른 쪽이 끝날 때까지 결과를 유지한다.' : st.why;
+    // 먼저 끝난 쪽도 마지막 단계의 이유(정답·오답 근거)를 계속 보여 줌
+    document.getElementById(kind + '-why').textContent = (ended ? '(먼저 끝남) ' : '') + st.why;
     document.getElementById(kind + '-code').innerHTML = codeHTML(kind, st.lines);
   }
 
