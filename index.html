@@ -34,6 +34,18 @@
   .seg button { border: 0; border-radius: 0; padding: 5px 10px; font-size: 13px; }
   .seg button.on { background: var(--ast); color: #fff; }
   .seg button.on.bad { background: var(--bad); }
+  .hctl { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 8px; }
+  .hctl label { display: flex; align-items: center; gap: 8px; font-size: 14px; flex: 1; min-width: 200px; }
+  .hctl input[type=range] { flex: 1; accent-color: var(--ast); }
+  .hctl b { font-variant-numeric: tabular-nums; min-width: 2.2em; display: inline-block; }
+  .chip { font-size: 12.5px; font-weight: 700; padding: 3px 9px; border-radius: 999px; }
+  .chip.ok { background: #dcfce7; color: #166534; } .chip.warn { background: #fef3c7; color: #92400e; } .chip.bad { background: #fee2e2; color: #991b1b; }
+  .strip { display: grid; grid-template-columns: repeat(25, minmax(0, 1fr)); gap: 3px; margin: 10px 0 6px; }
+  .strip button { padding: 6px 0; border-radius: 6px; border: 2px solid transparent; font-size: 11px; line-height: 1.25; color: #0f172a; }
+  .strip button small { display: block; font-size: 10px; color: #475569; }
+  .strip button.ok { background: #dcfce7; } .strip button.warn { background: #fef3c7; } .strip button.bad { background: #fee2e2; }
+  .strip button.cur { border-color: var(--ink); }
+  @media (max-width: 700px) { .strip { grid-template-columns: repeat(9, minmax(0, 1fr)); } }
   .steptitle { font-weight: 700; margin: 8px 0 0; min-height: 1.5em; }
   .done { color: var(--ok); font-weight: 700; }
   .wrong { color: var(--bad); font-weight: 700; }
@@ -98,9 +110,13 @@
     </div>
     <div class="panel astar">
       <h2>A* <small>우선순위 = g(n) + h(n)</small></h2>
-      <div class="seg" role="group" aria-label="휴리스틱 선택">
-        <button id="h-true" class="on">정상 h (직선거리)</button>
-        <button id="h-over">반례: h(A) = 10 (과대평가)</button>
+      <div class="hctl">
+        <div class="seg" role="group" aria-label="휴리스틱 선택">
+          <button id="h-true" class="on">정상 h</button>
+          <button id="h-over">반례 h(A) = 10</button>
+        </div>
+        <label>h(A) = <b id="ha-val">3</b><input type="range" id="ha" min="0" max="12" step="0.5" value="3" aria-label="h(A) 값"></label>
+        <span class="chip ok" id="ha-status"></span>
       </div>
       <div class="steptitle" id="astar-title"></div>
       <div id="astar-graph"></div>
@@ -116,6 +132,17 @@
       </div>
     </div>
   </div>
+
+  <section class="info">
+    <h3>h(A)를 바꾸면 A*는 어떻게 되나</h3>
+    <p style="margin:0">A에서 G까지 실제 남은 거리는 <b>4</b>이고 직선거리 h(A)는 3이다. h(A)를 0부터 12까지 바꿔 가며 A*를 실제로 돌린 결과이다. 칸 아래 숫자는 꺼낸 정점 수, 칸을 누르면 그 값으로 재생한다.</p>
+    <div class="strip" id="strip"></div>
+    <div class="legend" style="margin-top:0">
+      <span><i style="background:#dcfce7"></i>과대평가 아님 (h(A) ≤ 4): 항상 정답</span>
+      <span><i style="background:#fef3c7"></i>과대평가지만 이번엔 정답 (헛걸음 증가)</span>
+      <span><i style="background:#fee2e2"></i>오답</span>
+    </div>
+  </section>
 
   <section class="info">
     <h3>결과 비교 (실제 실행 결과)</h3>
@@ -169,10 +196,9 @@
   }
 
   function renderResult() {
-    const over = trace('astar', H_OVER);
-    const row = (label, f) => `<tr><td>${label}</td><td>${f(dij)}</td><td>${f(trace('astar'))}</td><td>${f(over)}</td></tr>`;
+    const row = (label, f) => `<tr><td>${label}</td><td>${f(dij)}</td><td>${f(trace('astar'))}</td><td>${f(ast)}</td></tr>`;
     document.getElementById('result').innerHTML = `
-      <tr><th>항목</th><th>Dijkstra</th><th>A* (정상 h)</th><th>A* (h(A) = 10, 반례)</th></tr>
+      <tr><th>항목</th><th>Dijkstra</th><th>A* (정상 h)</th><th>A* (현재 h(A) = ${fmt(hA)})</th></tr>
       ${row('찾은 경로', r => r.path.join(' → '))}
       ${row('거리', r => `<b>${fmt(r.dist)}</b>` + (Math.abs(r.dist - dij.dist) > 1e-9 ? ' <span class="wrong">(오답)</span>' : ' (최단)'))}
       ${row('꺼낸 정점 수', r => `${r.popped}개`)}
@@ -205,19 +231,34 @@
     if (e.key === 'ArrowLeft') go(k - 1);
   });
 
+  // h(A) 값 분류: ok = 과대평가 아님, warn = 과대평가지만 정답, bad = 오답
+  const classify = (v, r) => (v <= REMAIN.A + 1e-9 ? 'ok' : Math.abs(r.dist - dij.dist) < 1e-9 ? 'warn' : 'bad');
+  const STATUS = { ok: '과대평가 아님', warn: '과대평가 · 이번엔 정답', bad: '과대평가 · 오답' };
   const hTrue = document.getElementById('h-true'), hOver = document.getElementById('h-over');
-  function setH(over) {
-    ast = trace('astar', over ? H_OVER : H_TRUE);
-    hTrue.className = over ? '' : 'on';
-    hOver.className = over ? 'on bad' : '';
-    setMax(); go(0);
-  }
-  hTrue.onclick = () => setH(false);
-  hOver.onclick = () => setH(true);
+  const haInput = document.getElementById('ha');
+  let hA = H_TRUE.A;
+  const sweep = [];
+  for (let v = 0; v <= 12 + 1e-9; v += 0.5) { const r = trace('astar', makeH(v)); sweep.push({ v, r, cls: classify(v, r) }); }
 
-  setMax();
-  renderResult();
-  render();
+  function setH(v) {
+    hA = v;
+    ast = trace('astar', makeH(v));
+    haInput.value = v;
+    document.getElementById('ha-val').textContent = fmt(v);
+    const cls = classify(v, ast), st = document.getElementById('ha-status');
+    st.className = 'chip ' + cls; st.textContent = STATUS[cls];
+    hTrue.className = Math.abs(v - H_TRUE.A) < 1e-9 ? 'on' : '';
+    hOver.className = v === 10 ? 'on bad' : '';
+    document.getElementById('strip').innerHTML = sweep.map(e =>
+      `<button class="${e.cls}${Math.abs(e.v - v) < 1e-9 ? ' cur' : ''}" data-v="${e.v}" title="h(A) = ${fmt(e.v)}: 거리 ${fmt(e.r.dist)}, ${e.r.popped}개 꺼냄">${fmt(e.v)}<small>${e.r.popped}개</small></button>`).join('');
+    setMax(); renderResult(); go(0);
+  }
+  hTrue.onclick = () => setH(H_TRUE.A);
+  hOver.onclick = () => setH(10);
+  haInput.oninput = () => setH(+haInput.value);
+  document.getElementById('strip').onclick = e => { const b = e.target.closest('button'); if (b) setH(+b.dataset.v); };
+
+  setH(H_TRUE.A);
 </script>
 </body>
 </html>

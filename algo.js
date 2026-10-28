@@ -23,8 +23,19 @@ const H_TRUE = (() => {
   for (const v of GRAPH.nodes) { const [x, y] = GRAPH.coord[v]; h[v] = Math.hypot(x - gx, y - gy); }
   return h;
 })();
-// 반례용: A의 h를 실제 남은 거리 4보다 큰 10으로 과대평가
-const H_OVER = { ...H_TRUE, A: 10 };
+// 각 정점에서 목표까지 실제 최단 거리 (h가 과대평가인지 판정할 때 사용)
+const REMAIN = (() => {
+  const d = { [GRAPH.goal]: 0 }, done = new Set();
+  for (;;) {
+    const u = GRAPH.nodes.filter(v => d[v] !== undefined && !done.has(v)).sort((a, b) => d[a] - d[b])[0];
+    if (!u) return d;
+    done.add(u);
+    for (const [v, w] of ADJ[u]) if (d[v] === undefined || d[u] + w < d[v]) d[v] = d[u] + w;
+  }
+})();
+// h(A)만 바꾼 휴리스틱. 반례 기본값은 실제 남은 거리 4보다 큰 10
+const makeH = hA => ({ ...H_TRUE, A: hA });
+const H_OVER = makeH(10);
 
 const EPS = 1e-9;
 const fmt = x => (x === undefined ? '∞' : Math.abs(x - Math.round(x)) < EPS ? String(Math.round(x)) : x.toFixed(1));
@@ -45,7 +56,7 @@ function pathFrom(parent, t) {
 // kind: 'dijkstra' | 'astar'. 두 알고리즘은 우선순위 계산 한 줄만 다름
 function trace(kind, h = H_TRUE) {
   const s = GRAPH.start, t = GRAPH.goal;
-  const isA = kind === 'astar', over = isA && h.A !== H_TRUE.A;
+  const isA = kind === 'astar', over = isA && h.A > REMAIN.A + EPS;
   const g = { [s]: 0 }, parent = {};
   const closed = new Set(), seen = new Set([s]);
   let pq = [s];
@@ -80,10 +91,12 @@ function trace(kind, h = H_TRUE) {
       let why;
       if (!isA) {
         why = `우선순위가 g이므로 ${t}를 꺼낸 순간 큐에 남은 정점은 모두 g가 ${fmt(g[t])} 이상이다. 그보다 짧은 길은 있을 수 없어서 여기서 끝낸다.`;
+      } else if (Math.abs(g[t] - best) < EPS && over) {
+        why = `h(A) = ${은(h.A)} 과대평가라 정답이 보장되지는 않았다. 그래도 이번에는 부풀려진 A가 ${t}보다 먼저 꺼내져서 최단 경로를 찾았다. 과대평가가 작으면 헛걸음만 늘고 답은 맞을 수 있다.`;
       } else if (Math.abs(g[t] - best) < EPS) {
         why = `h가 실제 남은 거리보다 크지 않으므로 f는 그 정점을 지나는 경로 길이의 하한이다. 큐에 남은 정점의 f가 모두 ${fmt(g[t])} 이상${rest.length ? `(최소 ${fmt(pri(rest[0]))})` : ''}이라 더 짧은 길은 없다.`;
       } else {
-        why = `틀린 답이다. 실제 최단은 S → A → G, 거리 ${fmt(best)}이다. A를 지나는 실제 경로는 ${fmt(best)}인데 A의 f는 ${fmt(g.A + h.A)}로 부풀려져 큐 뒤에 남아 있었다. h가 과대평가하면 f가 하한 역할을 못 해서 최단 경로를 보기 전에 끝나 버린다.`;
+        why = `틀린 답이다. 실제 최단은 ${trace('dijkstra').path.join(' → ')}, 거리 ${fmt(best)}이다. A를 지나는 실제 경로는 ${fmt(best)}인데 A의 f는 ${fmt(g.A + h.A)}로 부풀려져 큐 뒤에 남아 있었다. h가 과대평가하면 f가 하한 역할을 못 해서 최단 경로를 보기 전에 끝나 버린다.`;
       }
       snap({
         current: u, lines: [3, 4], path, done: true, wrong: isA && Math.abs(g[t] - best) > EPS,
@@ -126,11 +139,17 @@ function trace(kind, h = H_TRUE) {
       why = byG !== byF
         ? `${byG}는 g = ${fmt(g[byG])}로 가장 가깝지만 h = ${이라(h[byG])} f = ${이(pri(byG))} 되어 ${byF}(f = ${fmt(pri(byF))})보다 뒤로 밀린다. 목표에서 멀다는 정보가 h에 담겨 있기 때문이다.`
         : 'f = g + h가 작은 순서로 꺼낸다. h가 목표까지 남은 거리를 알려 주므로 목표 쪽 정점이 앞에 선다.';
-      if (over) why += ` 단, 이번 h(A) = 10은 실제 남은 거리 4보다 크다(과대평가). A의 f가 14로 부풀려져 맨 뒤로 밀린다.`;
-    } else if (over) {
+      if (over) why += ` 단, 이번 h(A) = ${은(h.A)} 실제 남은 거리 ${fmt(REMAIN.A)}보다 크다(과대평가). A의 f가 ${로(pri('A'))} 부풀려진다.`;
+      else if (h.A < H_TRUE.A - EPS) why += ` 이번 h(A) = ${은(h.A)} 직선거리 ${fmt(H_TRUE.A)}보다 작다. 실제 남은 거리를 넘지 않으므로 최단 경로 보장은 그대로이다.`;
+      else if (h.A > H_TRUE.A + EPS) why += ` 이번 h(A) = ${은(h.A)} 직선거리보다 크지만 실제 남은 거리 ${fmt(REMAIN.A)} 이하라서 과대평가가 아니다.`;
+    } else if (over && u === 'A') {
+      why = `부풀려졌던 A가 이제야 꺼내진다. A의 f는 ${fmt(pri('A'))}이지만 A를 지나는 실제 경로는 ${fmt(g.A + REMAIN.A)}이다. 늦어진 만큼 헛걸음이 생겼지만, 아직 목표를 꺼내기 전이라 정답은 지킬 수 있다.${tie === t ? ` 단, ${t}와 f가 같았는데 알파벳순 규칙 덕분에 A가 먼저 나온 아슬아슬한 경우이다.` : ''}`;
+    } else if (over && g.A !== undefined && !closed.has('A')) {
       why = deadEnd
-        ? `${u}는 막다른 정점이다. 정상 h였다면 꺼낼 필요가 없었지만, 진짜 최단 경로 쪽 A가 f = 14로 밀려 있어서 대신 꺼내게 된다.`
-        : `A가 f = 14로 밀려 있어서 ${u} 쪽 우회로를 따라간다. h가 틀리면 A*가 엉뚱한 방향을 먼저 펼친다.`;
+        ? `${u}는 막다른 정점이다. 정상 h였다면 꺼낼 필요가 없었지만, 최단 경로 쪽 A가 f = ${로(pri('A'))} 밀려 있어서 대신 꺼내게 된다.`
+        : `A가 f = ${로(pri('A'))} 밀려 있어서 ${u} 쪽 우회로를 따라간다. h가 틀리면 A*가 엉뚱한 방향을 먼저 펼친다.`;
+    } else if (deadEnd) {
+      why = `${u}는 막다른 정점이다. 지금 큐에서 f가 가장 작아서 꺼냈지만 갱신할 것이 없다.`;
     } else {
       why = `${u}는 목표 쪽에 있어 h가 작고, 그래서 f가 가장 작다. A*는 이렇게 목표 방향 정점을 먼저 펼친다.`;
     }
