@@ -3,42 +3,48 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BFS vs DFS 시각화</title>
+<title>Dijkstra vs A* 시각화</title>
 <style>
   :root {
     --bg: #f8fafc; --card: #ffffff; --ink: #0f172a; --muted: #475569; --line: #e2e8f0;
-    --bfs: #2563eb; --dfs: #ea580c; --ok: #16a34a;
+    --dij: #0f766e; --ast: #7c3aed; --ok: #16a34a; --bad: #dc2626;
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--ink);
     font-family: "Pretendard", "Malgun Gothic", "Apple SD Gothic Neo", system-ui, sans-serif; line-height: 1.55; }
-  header { padding: 28px 16px 8px; max-width: 1200px; margin: 0 auto; }
+  header { padding: 28px 16px 8px; max-width: 1240px; margin: 0 auto; }
   h1 { margin: 0 0 6px; font-size: 26px; }
   header p { margin: 0; color: var(--muted); }
-  main { max-width: 1200px; margin: 0 auto; padding: 0 16px 48px; }
+  main { max-width: 1240px; margin: 0 auto; padding: 0 16px 48px; }
   .controls { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: 12px 0;
     display: flex; flex-wrap: wrap; gap: 8px; align-items: center; border-bottom: 1px solid var(--line); }
-  button { font: inherit; padding: 8px 14px; border-radius: 8px; border: 1px solid #cbd5e1; background: #fff; cursor: pointer; }
+  button { font: inherit; padding: 8px 14px; border-radius: 8px; border: 1px solid #cbd5e1; background: #fff; cursor: pointer; color: var(--ink); }
   button:hover { background: #f1f5f9; }
   button.primary { background: var(--ink); color: #fff; border-color: var(--ink); }
   .controls input[type=range] { flex: 1; min-width: 140px; }
   .stepno { font-variant-numeric: tabular-nums; color: var(--muted); min-width: 90px; }
   .panels { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
-  @media (max-width: 860px) { .panels { grid-template-columns: 1fr; } }
-  .panel { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; border-top: 5px solid; }
-  .panel.bfs { border-top-color: var(--bfs); }
-  .panel.dfs { border-top-color: var(--dfs); }
-  .panel h2 { margin: 0; font-size: 20px; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  @media (max-width: 900px) { .panels { grid-template-columns: 1fr; } }
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; border-top: 5px solid; min-width: 0; }
+  .panel.dijkstra { border-top-color: var(--dij); }
+  .panel.astar { border-top-color: var(--ast); }
+  .panel h2 { margin: 0; font-size: 20px; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
   .panel h2 small { font-size: 13px; color: var(--muted); font-weight: 500; }
-  .steptitle { font-weight: 700; margin: 6px 0 0; min-height: 1.5em; }
+  .seg { display: inline-flex; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; margin-top: 8px; }
+  .seg button { border: 0; border-radius: 0; padding: 5px 10px; font-size: 13px; }
+  .seg button.on { background: var(--ast); color: #fff; }
+  .seg button.on.bad { background: var(--bad); }
+  .steptitle { font-weight: 700; margin: 8px 0 0; min-height: 1.5em; }
+  .done { color: var(--ok); font-weight: 700; }
+  .wrong { color: var(--bad); font-weight: 700; }
   svg.graph { width: 100%; height: auto; display: block; margin: 4px 0; }
-  .ds { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-height: 40px; padding: 8px 10px;
+  .ds { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-height: 46px; padding: 8px 10px;
     background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 10px; }
-  .ds b { font-size: 13px; color: var(--muted); margin-right: 4px; }
-  .box { display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 6px; font-weight: 700; color: #fff; }
-  .box.q { background: var(--bfs); }
-  .box.s { background: var(--dfs); }
-  .ds .hint { font-size: 12px; color: var(--muted); }
+  .ds > b { font-size: 13px; color: var(--muted); margin-right: 4px; }
+  .box { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; min-width: 38px; height: 38px;
+    padding: 0 6px; border-radius: 6px; color: #fff; line-height: 1.1; }
+  .box b { font-size: 14px; } .box small { font-size: 11px; opacity: 0.9; }
+  .box.dijkstra { background: var(--dij); } .box.astar { background: var(--ast); }
   .empty { color: var(--muted); font-size: 13px; }
   .explain { margin-top: 10px; display: grid; gap: 6px; }
   .explain div { padding: 8px 12px; border-radius: 8px; font-size: 14.5px; }
@@ -46,8 +52,9 @@
   .explain .why { background: #fefce8; }
   .explain span.tag { font-weight: 700; margin-right: 6px; }
   pre.code { margin: 10px 0 0; padding: 10px 0; background: #0f172a; color: #cbd5e1; border-radius: 10px; font-size: 12.5px; overflow-x: auto; }
-  pre.code span { display: block; padding: 0 12px; white-space: pre; }
+  pre.code span { display: block; padding: 0 12px; white-space: pre; min-height: 1.2em; }
   pre.code span.hl { background: #334155; color: #fde68a; }
+  pre.code span.diff { color: #f0abfc; font-weight: 700; }
   .legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 13px; color: var(--muted); margin-top: 8px; }
   .legend i { display: inline-block; width: 14px; height: 14px; border-radius: 50%; vertical-align: -2px; margin-right: 4px; }
   section.info { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px 20px; margin-top: 16px; }
@@ -55,18 +62,17 @@
   table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
   th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
   th { background: #f1f5f9; }
-  .done { color: var(--ok); font-weight: 700; }
   .table-wrap { overflow-x: auto; }
 </style>
 </head>
 <body>
 <header>
-  <h1>BFS vs DFS: 무가중치 그래프에서 출발점→목표 경로 찾기</h1>
-  <p>정점 8개 무방향 그래프, 출발 1 → 목표 8, 인접 정점은 번호 오름차순으로 방문. 같은 단계 번호에서 두 알고리즘을 나란히 비교한다.</p>
+  <h1>Dijkstra vs A*: 출발점 → 목표점 최단 경로</h1>
+  <p>정점 7개 가중치 그래프, 출발 S → 목표 G. 간선 위 숫자는 가중치, h는 목표까지 직선거리. 우선순위가 같으면 알파벳순으로 꺼낸다. 같은 단계 번호에서 두 알고리즘을 나란히 비교한다.</p>
 </header>
 <main>
   <div class="controls">
-    <button id="first" title="처음">⏮ 처음</button>
+    <button id="first">⏮ 처음</button>
     <button id="prev">◀ 이전</button>
     <button id="next" class="primary">다음 ▶</button>
     <button id="last">끝 ⏭</button>
@@ -76,34 +82,37 @@
   </div>
 
   <div class="panels">
-    <div class="panel bfs">
-      <h2>BFS <small>너비 우선 · 큐(FIFO)</small></h2>
-      <div class="steptitle" id="bfs-title"></div>
-      <div id="bfs-graph"></div>
-      <div class="ds"><b>큐 (앞 → 뒤)</b><span id="bfs-ds"></span></div>
-      <div class="explain"><div class="what"><span class="tag">한 일</span><span id="bfs-what"></span></div>
-        <div class="why"><span class="tag">이유</span><span id="bfs-why"></span></div></div>
-      <pre class="code" id="bfs-code"></pre>
+    <div class="panel dijkstra">
+      <h2>Dijkstra <small>우선순위 = g(n)</small></h2>
+      <div class="steptitle" id="dijkstra-title"></div>
+      <div id="dijkstra-graph"></div>
+      <div class="ds"><b>우선순위 큐 (작은 것부터)</b><span id="dijkstra-ds"></span></div>
+      <div class="explain"><div class="what"><span class="tag">한 일</span><span id="dijkstra-what"></span></div>
+        <div class="why"><span class="tag">이유</span><span id="dijkstra-why"></span></div></div>
+      <pre class="code" id="dijkstra-code"></pre>
       <div class="legend">
-        <span><i style="background:#1e40af"></i>d=0</span><span><i style="background:#2563eb"></i>d=1</span>
-        <span><i style="background:#60a5fa"></i>d=2</span><span><i style="background:#bfdbfe"></i>d=3</span>
-        <span><i style="border:3px solid #2563eb;background:#fff"></i>큐에서 대기</span>
+        <span><i style="background:#0f766e"></i>꺼낸 정점(확정)</span>
+        <span><i style="background:#ccfbf1;border:3px solid #0f766e"></i>큐에서 대기</span>
         <span><i style="border:3px solid #facc15;background:#fff"></i>지금 꺼낸 정점</span>
       </div>
     </div>
-    <div class="panel dfs">
-      <h2>DFS <small>깊이 우선 · 재귀 스택(LIFO)</small></h2>
-      <div class="steptitle" id="dfs-title"></div>
-      <div id="dfs-graph"></div>
-      <div class="ds"><b>재귀 스택 (바닥 → 꼭대기)</b><span id="dfs-ds"></span></div>
-      <div class="explain"><div class="what"><span class="tag">한 일</span><span id="dfs-what"></span></div>
-        <div class="why"><span class="tag">이유</span><span id="dfs-why"></span></div></div>
-      <pre class="code" id="dfs-code"></pre>
+    <div class="panel astar">
+      <h2>A* <small>우선순위 = g(n) + h(n)</small></h2>
+      <div class="seg" role="group" aria-label="휴리스틱 선택">
+        <button id="h-true" class="on">정상 h (직선거리)</button>
+        <button id="h-over">반례: h(A) = 10 (과대평가)</button>
+      </div>
+      <div class="steptitle" id="astar-title"></div>
+      <div id="astar-graph"></div>
+      <div class="ds"><b>우선순위 큐 (f 작은 것부터)</b><span id="astar-ds"></span></div>
+      <div class="explain"><div class="what"><span class="tag">한 일</span><span id="astar-what"></span></div>
+        <div class="why"><span class="tag">이유</span><span id="astar-why"></span></div></div>
+      <pre class="code" id="astar-code"></pre>
       <div class="legend">
-        <span><i style="background:#ea580c"></i>스택 위(탐색 중)</span>
-        <span><i style="background:#a8a29e"></i>되돌아온 정점(끝남)</span>
-        <span><i style="border:3px solid #facc15;background:#fff"></i>현재 정점</span>
-        <span>#k = k번째로 방문</span>
+        <span><i style="background:#7c3aed"></i>꺼낸 정점</span>
+        <span><i style="background:#ede9fe;border:3px solid #7c3aed"></i>큐에서 대기</span>
+        <span><i style="border:3px solid #facc15;background:#fff"></i>지금 꺼낸 정점</span>
+        <span>점선 = 현재 정점의 h</span>
       </div>
     </div>
   </div>
@@ -116,45 +125,64 @@
   <section class="info">
     <h3>복잡도 비교</h3>
     <div class="table-wrap"><table>
-      <tr><th>항목</th><th>BFS</th><th>DFS</th></tr>
-      <tr><td>시간 (인접 리스트)</td><td>O(V + E)</td><td>O(V + E)</td></tr>
-      <tr><td>시간 (인접 행렬)</td><td>O(V²)</td><td>O(V²)</td></tr>
-      <tr><td>추가 공간</td><td>O(V): 큐 + visited + parent</td><td>O(V): 재귀 스택 + visited + parent</td></tr>
-      <tr><td>공간을 많이 쓰는 경우</td><td>한 레벨에 정점이 많은 넓은 그래프</td><td>경로가 긴 좁고 깊은 그래프</td></tr>
-      <tr><td>최단 경로 보장</td><td>무가중치 그래프에서 보장</td><td>보장하지 않음</td></tr>
+      <tr><th>항목</th><th>Dijkstra</th><th>A*</th></tr>
+      <tr><td>우선순위</td><td>g(n): 출발점부터 실제 비용</td><td>g(n) + h(n): 실제 비용 + 남은 거리 추정치</td></tr>
+      <tr><td>시간 (이진 힙, 최악)</td><td>O((V + E) log V)</td><td>O((V + E) log V)</td></tr>
+      <tr><td>공간</td><td>O(V): g, parent, 우선순위 큐</td><td>O(V): 같음 + h 값</td></tr>
+      <tr><td>실제로 꺼내는 정점</td><td>출발점에서 목표 거리보다 가까운 정점 전부</td><td>h가 정확할수록 목표 방향 정점만</td></tr>
+      <tr><td>최단 경로 보장</td><td>음수 간선이 없으면 보장</td><td>h가 실제 남은 거리를 넘지 않으면 보장</td></tr>
+      <tr><td>관계</td><td colspan="2">h(n) = 0으로 두면 A*는 Dijkstra와 똑같이 동작한다.</td></tr>
     </table></div>
-    <p>두 알고리즘 모두 각 정점을 최대 한 번 방문하고, 방문한 정점의 인접 리스트를 한 번씩 훑는다. 무방향 그래프에서 인접 리스트 길이의 합은 2E이므로 전체 O(V + E)이다. 인접 행렬이면 정점마다 한 행(V칸)을 훑어야 하므로 O(V²)이 된다.</p>
+    <p>두 알고리즘 모두 정점을 우선순위 큐에서 한 번씩 꺼내고(V번, 각 O(log V)), 간선마다 한 번씩 거리 갱신을 시도한다(E번, 각 O(log V)). 그래서 최악 복잡도는 같다. 차이는 <b>실제로 몇 개를 꺼내느냐</b>이다. Dijkstra는 목표 방향을 모르므로 출발점 기준 동심원으로 넓혀 가고, A*는 h 덕분에 목표에서 먼 정점을 큐 뒤로 미룬다.</p>
   </section>
 </main>
 <script src="algo.js"></script>
 <script>
-  const bfs = traceBFS(), dfs = traceDFS();
-  const maxStep = Math.max(bfs.steps.length, dfs.steps.length) - 1;
+  let dij = trace('dijkstra'), ast = trace('astar', H_TRUE);
   const slider = document.getElementById('slider');
-  slider.max = maxStep;
-  let k = 0, timer = null;
+  let k = 0, timer = null, maxStep = 0;
 
-  function codeHTML(lines, active) {
-    return lines.map((l, i) => `<span class="${active.includes(i) ? 'hl' : ''}">${l.replace(/</g, '&lt;')}</span>`).join('');
+  function setMax() {
+    maxStep = Math.max(dij.steps.length, ast.steps.length) - 1;
+    slider.max = maxStep;
+    k = Math.min(k, maxStep);
   }
 
-  function renderPanel(id, trace, algo) {
-    const i = Math.min(k, trace.steps.length - 1);
-    const st = trace.steps[i];
-    const ended = k > trace.steps.length - 1;
-    document.getElementById(id + '-title').innerHTML =
-      `단계 ${i}/${trace.steps.length - 1} · ${st.title}` + (st.done ? ' <span class="done">✔ 종료</span>' : '');
-    document.getElementById(id + '-graph').innerHTML = graphSVG(st, algo, { id });
-    document.getElementById(id + '-ds').innerHTML = algo === 'bfs'
-      ? boxesHTML(st.queue, 'q') : boxesHTML(st.stack, 's');
-    document.getElementById(id + '-what').textContent = st.what;
-    document.getElementById(id + '-why').textContent = ended ? '이미 탐색이 끝났다. 다른 쪽이 끝날 때까지 결과를 유지한다.' : st.why;
-    document.getElementById(id + '-code').innerHTML = codeHTML(algo === 'bfs' ? BFS_CODE : DFS_CODE, st.lines);
+  function codeHTML(kind, active) {
+    return CODE(kind).map((l, i) => {
+      const cls = [active.includes(i) ? 'hl' : '', i === 10 ? 'diff' : ''].join(' ');
+      return `<span class="${cls}">${l.replace(/</g, '&lt;')}</span>`;
+    }).join('');
+  }
+
+  function renderPanel(kind, tr) {
+    const i = Math.min(k, tr.steps.length - 1);
+    const st = tr.steps[i];
+    const ended = k > tr.steps.length - 1;
+    const badge = st.done ? (st.wrong ? ' <span class="wrong">✘ 틀린 경로로 종료</span>' : ' <span class="done">✔ 도착</span>') : '';
+    document.getElementById(kind + '-title').innerHTML = `단계 ${i}/${tr.steps.length - 1} · ${st.title}${badge}`;
+    document.getElementById(kind + '-graph').innerHTML = graphSVG(st);
+    document.getElementById(kind + '-ds').innerHTML = pqHTML(st.pq, kind);
+    document.getElementById(kind + '-what').textContent = st.what;
+    document.getElementById(kind + '-why').textContent = ended ? '이미 탐색이 끝났다. 다른 쪽이 끝날 때까지 결과를 유지한다.' : st.why;
+    document.getElementById(kind + '-code').innerHTML = codeHTML(kind, st.lines);
+  }
+
+  function renderResult() {
+    const over = trace('astar', H_OVER);
+    const row = (label, f) => `<tr><td>${label}</td><td>${f(dij)}</td><td>${f(trace('astar'))}</td><td>${f(over)}</td></tr>`;
+    document.getElementById('result').innerHTML = `
+      <tr><th>항목</th><th>Dijkstra</th><th>A* (정상 h)</th><th>A* (h(A) = 10, 반례)</th></tr>
+      ${row('찾은 경로', r => r.path.join(' → '))}
+      ${row('거리', r => `<b>${fmt(r.dist)}</b>` + (Math.abs(r.dist - dij.dist) > 1e-9 ? ' <span class="wrong">(오답)</span>' : ' (최단)'))}
+      ${row('꺼낸 정점 수', r => `${r.popped}개`)}
+      ${row('발견한 정점 수', r => `${r.discovered}개`)}
+      ${row('꺼낸 순서', r => r.steps.slice(1).map(s => s.current).join(' → '))}`;
   }
 
   function render() {
-    renderPanel('bfs', bfs, 'bfs');
-    renderPanel('dfs', dfs, 'dfs');
+    renderPanel('dijkstra', dij);
+    renderPanel('astar', ast);
     slider.value = k;
     document.getElementById('stepno').textContent = `단계 ${k} / ${maxStep}`;
   }
@@ -170,20 +198,25 @@
     if (timer) { clearInterval(timer); timer = null; playBtn.textContent = '▶ 자동재생'; return; }
     if (k === maxStep) go(0);
     playBtn.textContent = '⏸ 정지';
-    timer = setInterval(() => { if (k >= maxStep) playBtn.click(); else go(k + 1); }, 2200);
+    timer = setInterval(() => { if (k >= maxStep) playBtn.click(); else go(k + 1); }, 2400);
   };
   document.addEventListener('keydown', e => {
     if (e.key === 'ArrowRight') go(k + 1);
     if (e.key === 'ArrowLeft') go(k - 1);
   });
 
-  document.getElementById('result').innerHTML = `
-    <tr><th>항목</th><th>BFS</th><th>DFS</th></tr>
-    <tr><td>찾은 경로</td><td>${bfs.path.join(' → ')}</td><td>${dfs.path.join(' → ')}</td></tr>
-    <tr><td>경로 길이(간선 수)</td><td><b>${bfs.path.length - 1}</b> (최단)</td><td><b>${dfs.path.length - 1}</b></td></tr>
-    <tr><td>처리한 정점 수</td><td>${bfs.processedCount}개 (큐에서 꺼낸 정점)</td><td>${dfs.visitedCount}개 (재귀 호출된 정점)</td></tr>
-    <tr><td>발견했지만 처리 안 한 정점</td><td>${bfs.discoveredCount - bfs.processedCount}개 (6: 큐에 남은 채 종료)</td><td>없음 (3은 아예 발견도 안 됨)</td></tr>
-    <tr><td>단계 수</td><td>${bfs.steps.length - 1}</td><td>${dfs.steps.length - 1}</td></tr>`;
+  const hTrue = document.getElementById('h-true'), hOver = document.getElementById('h-over');
+  function setH(over) {
+    ast = trace('astar', over ? H_OVER : H_TRUE);
+    hTrue.className = over ? '' : 'on';
+    hOver.className = over ? 'on bad' : '';
+    setMax(); go(0);
+  }
+  hTrue.onclick = () => setH(false);
+  hOver.onclick = () => setH(true);
+
+  setMax();
+  renderResult();
   render();
 </script>
 </body>
