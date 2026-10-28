@@ -75,6 +75,9 @@
   th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
   th { background: #f1f5f9; }
   .table-wrap { overflow-x: auto; }
+  body.cap-panels header, body.cap-panels .controls, body.cap-panels section.info, body.cap-panels pre.code { display: none; }
+  body.cap-strip header, body.cap-strip .controls, body.cap-strip .panels, body.cap-strip section.info:not(#sweep) { display: none; }
+  body[class*='cap-'] main { padding-top: 12px; padding-bottom: 12px; }
 </style>
 </head>
 <body>
@@ -133,7 +136,7 @@
     </div>
   </div>
 
-  <section class="info">
+  <section class="info" id="sweep">
     <h3>h(A)를 바꾸면 A*는 어떻게 되나</h3>
     <p style="margin:0">A에서 G까지 실제 남은 거리는 <b>4</b>이고 직선거리 h(A)는 3이다. h(A)를 0부터 12까지 바꿔 가며 A*를 실제로 돌린 결과이다. 칸 아래 숫자는 꺼낸 정점 수, 칸을 누르면 그 값으로 재생한다.</p>
     <div class="strip" id="strip"></div>
@@ -258,7 +261,12 @@
   haInput.oninput = () => setH(+haInput.value);
   document.getElementById('strip').onclick = e => { const b = e.target.closest('button'); if (b) setH(+b.dataset.v); };
 
-  setH(H_TRUE.A);
+  // 주소로 상태 지정: ?hA=10&step=3 (보고서 캡처용 cap=panels | cap=strip 은 나머지 화면을 숨김)
+  const qs = new URLSearchParams(location.search);
+  const qh = parseFloat(qs.get('hA'));
+  setH(Number.isFinite(qh) ? Math.min(12, Math.max(0, qh)) : H_TRUE.A);
+  if (qs.has('step')) go(parseInt(qs.get('step'), 10) || 0);
+  if (qs.get('cap')) document.body.classList.add('cap-' + qs.get('cap'));
 </script>
 </body>
 </html>

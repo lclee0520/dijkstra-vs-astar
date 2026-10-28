@@ -3,3 +3,4 @@ report.html
 report_draft.pdf
 *.pdf
 .vercel
+captures/
