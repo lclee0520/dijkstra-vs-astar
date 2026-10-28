@@ -4,3 +4,5 @@ report_draft.pdf
 *.pdf
 .vercel
 captures/
+*.docx
+~$*
